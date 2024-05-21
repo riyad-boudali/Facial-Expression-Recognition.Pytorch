@@ -16,6 +16,11 @@ from skimage import io
 from skimage.transform import resize
 from models import *
 
+
+directory = 'images/results'
+if not os.path.exists(directory):
+    os.makedirs(directory)
+
 cut_size = 44
 
 transform_test = transforms.Compose([
@@ -26,7 +31,7 @@ transform_test = transforms.Compose([
 def rgb2gray(rgb):
     return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
-raw_img = io.imread('images/1.jpg')
+raw_img = io.imread('images/2.jpg')
 gray = rgb2gray(raw_img)
 gray = resize(gray, (48,48), mode='symmetric').astype(np.uint8)
 
@@ -39,21 +44,20 @@ inputs = transform_test(img)
 class_names = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
 
 net = VGG('VGG19')
-checkpoint = torch.load(os.path.join('FER2013_VGG19', 'PrivateTest_model.t7'))
+checkpoint = torch.load(os.path.join('FER2013_VGG19', 'PrivateTest_model.t7'),  map_location=torch.device('cpu'))
 net.load_state_dict(checkpoint['net'])
-net.cuda()
 net.eval()
 
 ncrops, c, h, w = np.shape(inputs)
 
 inputs = inputs.view(-1, c, h, w)
-inputs = inputs.cuda()
-inputs = Variable(inputs, volatile=True)
+with torch.no_grad():
+    inputs = inputs
 outputs = net(inputs)
 
-outputs_avg = outputs.view(ncrops, -1).mean(0)  # avg over crops
+outputs_avg = outputs.view(ncrops, -1).mean(0)  
 
-score = F.softmax(outputs_avg)
+score = F.softmax(outputs_avg, dim=0)  
 _, predicted = torch.max(outputs_avg.data, 0)
 
 plt.rcParams['figure.figsize'] = (13.5,5.5)
@@ -88,7 +92,7 @@ plt.tight_layout()
 # show emojis
 
 #plt.show()
-plt.savefig(os.path.join('images/results/l.png'))
+plt.savefig(os.path.join(directory, 'l.png'))
 plt.close()
 
 print("The Expression is %s" %str(class_names[int(predicted.cpu().numpy())]))
